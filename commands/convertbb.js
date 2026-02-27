@@ -3,8 +3,8 @@ const { processYt2Samp } = require('../services/yt2samp');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('yt2samp')
-    .setDescription('Konversi video YouTube menjadi link audio untuk Boombox GTA SA-MP')
+    .setName('convertbb')
+    .setDescription('Konversi YouTube ke link audio Boombox GTA SA-MP')
     .addStringOption((option) =>
       option
         .setName('url')
@@ -16,7 +16,6 @@ module.exports = {
     const youtubeUrl = interaction.options.getString('url');
     const userId = interaction.user.id;
 
-    // Defer reply — proses bisa lama
     await interaction.deferReply();
 
     try {
@@ -35,7 +34,7 @@ module.exports = {
             '',
             '**📎 Link Boombox (copy ini):**',
             `\`\`\`${httpLink}\`\`\``,
-            '📋 `/boombox place` → `/boombox url ${httpLink}`',
+            `📋 \`/boombox place\` → \`/boombox url ${httpLink}\``,
           ].join('\n')
         )
         .setFooter({ text: interaction.user.username, iconURL: interaction.user.displayAvatarURL() })
@@ -43,9 +42,8 @@ module.exports = {
 
       await interaction.editReply({ embeds: [embed] });
     } catch (err) {
-      console.error(`[yt2samp] Error untuk user ${userId}:`, err.message);
+      console.error(`[convertbb] Error untuk user ${userId}:`, err.message);
 
-      // Pesan error user-friendly
       const errorEmbed = new EmbedBuilder()
         .setColor(0xff0000)
         .setTitle('❌ Gagal memproses')
@@ -53,10 +51,7 @@ module.exports = {
         .setFooter({ text: 'Coba lagi nanti atau gunakan URL yang berbeda.' })
         .setTimestamp();
 
-      await interaction.editReply({ embeds: [errorEmbed] }).catch(() => {
-        // Jika editReply juga gagal (misalnya interaction expired)
-        console.error('[yt2samp] Gagal mengirim pesan error ke Discord.');
-      });
+      await interaction.editReply({ embeds: [errorEmbed] }).catch(() => {});
     }
   },
 };

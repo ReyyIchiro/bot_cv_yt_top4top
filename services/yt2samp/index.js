@@ -2,9 +2,10 @@ const { downloadAudio, formatDuration } = require('./downloader');
 const { uploadToTop4top } = require('./uploader');
 const { cleanupFile } = require('../../utils/tempFiles');
 
-// Rate limiter — Map<userId, timestamp>
+// Rate limiter — Map<userId, {count, firstUsed}>
 const rateLimitMap = new Map();
-const RATE_LIMIT_MS = 2 * 60 * 1000; // 2 menit
+const RATE_LIMIT_MAX = 2;              // Maks 2 request
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // per 10 menit
 
 // Active requests — Set<userId>
 const activeRequests = new Set();
@@ -15,12 +16,20 @@ const activeRequests = new Set();
  * @returns {{ limited: boolean, remainingMs: number }}
  */
 function checkRateLimit(userId) {
-  const lastUsed = rateLimitMap.get(userId);
-  if (!lastUsed) return { limited: false, remainingMs: 0 };
+  const entry = rateLimitMap.get(userId);
+  if (!entry) return { limited: false, remainingMs: 0 };
 
-  const elapsed = Date.now() - lastUsed;
-  if (elapsed < RATE_LIMIT_MS) {
-    return { limited: true, remainingMs: RATE_LIMIT_MS - elapsed };
+  const elapsed = Date.now() - entry.firstUsed;
+
+  // Window sudah lewat → reset
+  if (elapsed >= RATE_LIMIT_WINDOW_MS) {
+    rateLimitMap.delete(userId);
+    return { limited: false, remainingMs: 0 };
+  }
+
+  // Masih dalam window, cek jumlah pemakaian
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return { limited: true, remainingMs: RATE_LIMIT_WINDOW_MS - elapsed };
   }
 
   return { limited: false, remainingMs: 0 };
@@ -82,7 +91,14 @@ async function processYt2Samp(youtubeUrl, userId) {
   try {
     // Tandai user sebagai busy
     activeRequests.add(userId);
-    rateLimitMap.set(userId, Date.now());
+
+    // Update rate limit counter
+    const entry = rateLimitMap.get(userId);
+    if (entry) {
+      entry.count++;
+    } else {
+      rateLimitMap.set(userId, { count: 1, firstUsed: Date.now() });
+    }
 
     // Step 1: Download audio
     console.log(`[Orchestrator] Step 1/2: Download audio...`);
